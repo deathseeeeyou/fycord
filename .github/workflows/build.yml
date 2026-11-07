@@ -1,0 +1,22 @@
+name: build-server
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "server/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: rustup update stable && rustup target add x86_64-unknown-linux-musl
+      - run: cargo build --release --target x86_64-unknown-linux-musl
+        working-directory: server
+      - run: cp server/target/x86_64-unknown-linux-musl/release/fycord fycord-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fycord-linux
+          path: fycord-linux
