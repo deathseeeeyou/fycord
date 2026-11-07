@@ -30,9 +30,31 @@
 .animate-shake   { animation: shake 0.4s ease-in-out; }
 .animate-msg-in  { animation: msg-in 0.25s ease-out both; }
 .animate-chat-in { animation: chat-in 0.4s ease-out both; }
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes backdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-pop      { animation: pop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.animate-backdrop { animation: backdrop 0.15s ease-out both; }
 .animate-card-in { animation: card-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .animate-float   { animation: float 6s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-card-in, .animate-float, .animate-fade, .animate-shake, .animate-msg-in, .animate-chat-in { animation: none; }
+  .animate-card-in, .animate-float, .animate-fade, .animate-shake, .animate-msg-in, .animate-chat-in, .animate-pop, .animate-backdrop { animation: none; }
 }
+
+/* убираем встроенный глазик браузера в полях пароля */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
+/* тонкие тёмные скроллбары */
+* { scrollbar-width: thin; scrollbar-color: #1a1b1e transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
