@@ -6,7 +6,8 @@ const HTTP_URL = `http://${SERVER}`;
 const WS_URL = `ws://${SERVER}`;
 
 type Session = { token: string; username: string; handle: string };
-type Channel = { id: number; name: string };
+type Server = { id: number; name: string };
+type Channel = { id: number; server_id: number; name: string };
 type ChatMessage = { id: number; channel: number; user: string; text: string; ts: number };
 type Person = { username: string; handle: string; online?: boolean };
 type FriendsData = { friends: Person[]; incoming: Person[]; outgoing: Person[] };
@@ -335,11 +336,9 @@ function AuthScreen({ onAuth }: { onAuth: (s: Session) => void }) {
   );
 }
 
-/* ───────────── окна: профиль и новый канал ───────────── */
+/* ───────────── окна: профиль, сервер, канал ───────────── */
 
-function ProfileModal({
-  session, onClose, onSaved,
-}: { session: Session; onClose: () => void; onSaved: (handle: string) => void }) {
+function ProfileModal({ session, onClose, onSaved }: { session: Session; onClose: () => void; onSaved: (handle: string) => void }) {
   const [value, setValue] = useState(session.handle);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -373,38 +372,21 @@ function ProfileModal({
         <span className="text-sm font-semibold mb-2 block text-[#b5bac1]">Юзернейм</span>
         <div className={`flex items-center h-11 rounded-md bg-[#1e1f22] px-3 ${err ? "ring-1 ring-[#f23f42]" : "focus-within:ring-2 focus-within:ring-[#5865f2]"}`}>
           <span className="text-[#949ba4] mr-1">@</span>
-          <input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="flex-1 bg-transparent outline-none text-white"
-            autoFocus
-          />
+          <input value={value} onChange={(e) => setValue(e.target.value)} className="flex-1 bg-transparent outline-none text-white" autoFocus />
         </div>
-        <p className="text-xs text-[#949ba4] mt-2">
-          По юзернейму тебя добавляют в друзья. По умолчанию это твой ник маленькими буквами.
-        </p>
+        <p className="text-xs text-[#949ba4] mt-2">По юзернейму тебя добавляют в друзья.</p>
         {err && <p key={err} className="animate-fade text-sm text-[#f23f42] mt-3">{err}</p>}
 
         <div className="flex justify-end gap-2 mt-5">
-          <button type="button" onClick={onClose} className="h-10 px-4 rounded-md text-white hover:underline">
-            Отмена
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="h-10 px-5 rounded-md bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-70 text-white font-medium transition-colors"
-          >
-            Сохранить
-          </button>
+          <button type="button" onClick={onClose} className="h-10 px-4 rounded-md text-white hover:underline">Отмена</button>
+          <button type="submit" disabled={saving} className="h-10 px-5 rounded-md bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-70 text-white font-medium transition-colors">Сохранить</button>
         </div>
       </form>
     </Modal>
   );
 }
 
-function ChannelModal({
-  token, onClose, onCreated,
-}: { token: string; onClose: () => void; onCreated: (c: Channel) => void }) {
+function ChannelModal({ token, serverId, onClose, onCreated }: { token: string; serverId: number; onClose: () => void; onCreated: (c: Channel) => void }) {
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -414,7 +396,7 @@ function ChannelModal({
     setErr("");
     setSaving(true);
     try {
-      const c = await api<Channel>("/api/channels", token, { name });
+      const c = await api<Channel>("/api/channels", token, { server_id: serverId, name });
       onCreated(c);
       onClose();
     } catch (error) {
@@ -430,27 +412,49 @@ function ChannelModal({
         <span className="text-sm font-semibold mb-2 block text-[#b5bac1]">Название канала</span>
         <div className={`flex items-center h-11 rounded-md bg-[#1e1f22] px-3 ${err ? "ring-1 ring-[#f23f42]" : "focus-within:ring-2 focus-within:ring-[#5865f2]"}`}>
           <span className="text-[#949ba4] mr-1">#</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="новый-канал"
-            maxLength={32}
-            className="flex-1 bg-transparent outline-none text-white placeholder-[#4e5058]"
-            autoFocus
-          />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="новый-канал" maxLength={32} className="flex-1 bg-transparent outline-none text-white placeholder-[#4e5058]" autoFocus />
         </div>
         {err && <p key={err} className="animate-fade text-sm text-[#f23f42] mt-3">{err}</p>}
         <div className="flex justify-end gap-2 mt-5">
-          <button type="button" onClick={onClose} className="h-10 px-4 rounded-md text-white hover:underline">
-            Отмена
-          </button>
-          <button
-            type="submit"
-            disabled={saving || !name.trim()}
-            className="h-10 px-5 rounded-md bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-60 text-white font-medium transition-colors"
-          >
-            Создать
-          </button>
+          <button type="button" onClick={onClose} className="h-10 px-4 rounded-md text-white hover:underline">Отмена</button>
+          <button type="submit" disabled={saving || !name.trim()} className="h-10 px-5 rounded-md bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-60 text-white font-medium transition-colors">Создать</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ServerModal({ token, onClose, onCreated }: { token: string; onClose: () => void; onCreated: (s: Server) => void }) {
+  const [name, setName] = useState("");
+  const [err, setErr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr("");
+    setSaving(true);
+    try {
+      const s = await api<Server>("/api/servers", token, { name });
+      onCreated(s);
+      onClose();
+    } catch (error) {
+      setErr(errText(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title="Создать сервер" onClose={onClose}>
+      <form onSubmit={create}>
+        <span className="text-sm font-semibold mb-2 block text-[#b5bac1]">Название сервера</span>
+        <div className={`flex items-center h-11 rounded-md bg-[#1e1f22] px-3 ${err ? "ring-1 ring-[#f23f42]" : "focus-within:ring-2 focus-within:ring-[#5865f2]"}`}>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Мой сервер" maxLength={32} className="flex-1 bg-transparent outline-none text-white placeholder-[#4e5058]" autoFocus />
+        </div>
+        {err && <p key={err} className="animate-fade text-sm text-[#f23f42] mt-3">{err}</p>}
+        <div className="flex justify-end gap-2 mt-5">
+          <button type="button" onClick={onClose} className="h-10 px-4 rounded-md text-white hover:underline">Отмена</button>
+          <button type="submit" disabled={saving || !name.trim()} className="h-10 px-5 rounded-md bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-60 text-white font-medium transition-colors">Создать</button>
         </div>
       </form>
     </Modal>
@@ -459,22 +463,14 @@ function ChannelModal({
 
 /* ───────────── друзья ───────────── */
 
-function FriendsView({
-  token, data, onChanged,
-}: { token: string; data: FriendsData; onChanged: () => void }) {
+function FriendsView({ token, data, onChanged }: { token: string; data: FriendsData; onChanged: () => void }) {
   const [tab, setTab] = useState<"all" | "pending" | "add">("all");
   const [handle, setHandle] = useState("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
-
   const pendingCount = data.incoming.length;
 
   const act = async (path: string, h: string) => {
-    try {
-      await api(path, token, { handle: h });
-      onChanged();
-    } catch (e) {
-      setNote({ ok: false, text: errText(e) });
-    }
+    try { await api(path, token, { handle: h }); onChanged(); } catch (e) { setNote({ ok: false, text: errText(e) }); }
   };
 
   const addFriend = async (e: React.FormEvent) => {
@@ -483,24 +479,13 @@ function FriendsView({
     try {
       await api("/api/friends/request", token, { handle });
       setNote({ ok: true, text: `Заявка для @${handle.trim().replace(/^@/, "").toLowerCase()} отправлена` });
-      setHandle("");
-      onChanged();
-    } catch (err) {
-      setNote({ ok: false, text: errText(err) });
-    }
+      setHandle(""); onChanged();
+    } catch (err) { setNote({ ok: false, text: errText(err) }); }
   };
 
-  const sortedFriends = [...data.friends].sort(
-    (a, b) => Number(!!b.online) - Number(!!a.online) || a.username.localeCompare(b.username)
-  );
-
+  const sortedFriends = [...data.friends].sort((a, b) => Number(!!b.online) - Number(!!a.online) || a.username.localeCompare(b.username));
   const tabBtn = (id: typeof tab, label: string, badge?: number) => (
-    <button
-      onClick={() => { setTab(id); setNote(null); }}
-      className={`h-7 px-3 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ${
-        tab === id ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"
-      }`}
-    >
+    <button onClick={() => { setTab(id); setNote(null); }} className={`h-7 px-3 rounded-md text-sm font-medium flex items-center gap-2 transition-colors ${tab === id ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"}`}>
       {label}
       {!!badge && <span className="min-w-4 h-4 px-1 rounded-full bg-[#f23f42] text-white text-[11px] leading-4 text-center">{badge}</span>}
     </button>
@@ -511,98 +496,30 @@ function FriendsView({
       <Avatar name={p.username} size={36} online={showStatus ? !!p.online : undefined} />
       <div className="min-w-0 flex-1">
         <div className="font-semibold text-white truncate">{p.username}</div>
-        <div className="text-xs text-[#949ba4] truncate">
-          @{p.handle}
-          {showStatus && <> · {p.online ? "в сети" : "не в сети"}</>}
-        </div>
+        <div className="text-xs text-[#949ba4] truncate">@{p.handle}{showStatus && <> · {p.online ? "в сети" : "не в сети"}</>}</div>
       </div>
       <div className="flex gap-2">{actions}</div>
     </div>
   );
 
   const iconBtn = (label: string, onClick: () => void, tone: "ok" | "bad") => (
-    <button
-      onClick={onClick}
-      className={`h-8 px-3 rounded-md text-sm font-medium transition-colors ${
-        tone === "ok" ? "bg-[#23a559] hover:bg-[#1a8a49] text-white" : "bg-[#2b2d31] hover:bg-[#f23f42] text-[#dbdee1] hover:text-white"
-      }`}
-    >
-      {label}
-    </button>
+    <button onClick={onClick} className={`h-8 px-3 rounded-md text-sm font-medium transition-colors ${tone === "ok" ? "bg-[#23a559] hover:bg-[#1a8a49] text-white" : "bg-[#2b2d31] hover:bg-[#f23f42] text-[#dbdee1] hover:text-white"}`}>{label}</button>
   );
 
   return (
     <div className="flex-1 flex flex-col min-w-0">
       <div className="h-12 shrink-0 flex items-center gap-4 px-4 shadow-sm shadow-black/20">
-        <div className="flex items-center gap-2 font-bold text-white">
-          <span className="text-[#80848e]">{Icon.users}</span> Друзья
-        </div>
+        <div className="flex items-center gap-2 font-bold text-white"><span className="text-[#80848e]">{Icon.users}</span> Друзья</div>
         <div className="w-px h-5 bg-[#3f4147]" />
-        <div className="flex gap-1.5">
-          {tabBtn("all", "Все")}
-          {tabBtn("pending", "Заявки", pendingCount)}
-          {tabBtn("add", "Добавить")}
-        </div>
+        <div className="flex gap-1.5">{tabBtn("all", "Все")}{tabBtn("pending", "Заявки", pendingCount)}{tabBtn("add", "Добавить")}</div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        {tab === "all" && (
-          <>
-            <div className="text-xs font-bold uppercase text-[#949ba4] mb-3">Друзья — {sortedFriends.length}</div>
-            {sortedFriends.length === 0 ? (
-              <EmptyState title="Пока никого нет" text="Добавь друга по юзернейму во вкладке «Добавить»." />
-            ) : (
-              sortedFriends.map((p) => row(p, iconBtn("Удалить", () => act("/api/friends/remove", p.handle), "bad"), true))
-            )}
-          </>
-        )}
-
-        {tab === "pending" && (
-          <>
-            <div className="text-xs font-bold uppercase text-[#949ba4] mb-3">Входящие — {data.incoming.length}</div>
-            {data.incoming.length === 0 && <p className="text-sm text-[#949ba4] mb-6">Новых заявок нет.</p>}
-            {data.incoming.map((p) =>
-              row(p, (
-                <>
-                  {iconBtn("Принять", () => act("/api/friends/accept", p.handle), "ok")}
-                  {iconBtn("Отклонить", () => act("/api/friends/remove", p.handle), "bad")}
-                </>
-              ))
-            )}
-            <div className="text-xs font-bold uppercase text-[#949ba4] mt-8 mb-3">Исходящие — {data.outgoing.length}</div>
-            {data.outgoing.length === 0 && <p className="text-sm text-[#949ba4]">Ты никому не отправлял заявки.</p>}
-            {data.outgoing.map((p) => row(p, iconBtn("Отменить", () => act("/api/friends/remove", p.handle), "bad")))}
-          </>
-        )}
-
-        {tab === "add" && (
-          <form onSubmit={addFriend} className="max-w-xl">
-            <h2 className="text-lg font-semibold text-white">Добавить в друзья</h2>
-            <p className="text-sm text-[#b5bac1] mt-1 mb-4">Введи юзернейм друга — его можно посмотреть в профиле.</p>
-            <div className={`flex items-center h-12 rounded-lg bg-[#1e1f22] pl-4 pr-2 ${note && !note.ok ? "ring-1 ring-[#f23f42]" : note?.ok ? "ring-1 ring-[#23a559]" : "focus-within:ring-2 focus-within:ring-[#5865f2]"}`}>
-              <span className="text-[#949ba4] mr-1">@</span>
-              <input
-                value={handle}
-                onChange={(e) => { setHandle(e.target.value); setNote(null); }}
-                placeholder="юзернейм"
-                className="flex-1 bg-transparent outline-none text-white placeholder-[#4e5058]"
-                autoFocus
-              />
-              <button
-                type="submit"
-                disabled={!handle.trim()}
-                className="h-8 px-4 rounded-md bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
-              >
-                Отправить заявку
-              </button>
-            </div>
-          </form>
-        )}
-
+        {tab === "all" && (<><div className="text-xs font-bold uppercase text-[#949ba4] mb-3">Друзья — {sortedFriends.length}</div>{sortedFriends.length === 0 ? (<EmptyState title="Пока никого нет" text="Добавь друга по юзернейму во вкладке «Добавить»." />) : (sortedFriends.map((p) => row(p, iconBtn("Удалить", () => act("/api/friends/remove", p.handle), "bad"), true)))}</>)}
+        {tab === "pending" && (<><div className="text-xs font-bold uppercase text-[#949ba4] mb-3">Входящие — {data.incoming.length}</div>{data.incoming.length === 0 && <p className="text-sm text-[#949ba4] mb-6">Новых заявок нет.</p>}{data.incoming.map((p) => row(p, (<>{iconBtn("Принять", () => act("/api/friends/accept", p.handle), "ok")}{iconBtn("Отклонить", () => act("/api/friends/remove", p.handle), "bad")}</>)))}<div className="text-xs font-bold uppercase text-[#949ba4] mt-8 mb-3">Исходящие — {data.outgoing.length}</div>{data.outgoing.length === 0 && <p className="text-sm text-[#949ba4]">Ты никому не отправлял заявки.</p>}{data.outgoing.map((p) => row(p, iconBtn("Отменить", () => act("/api/friends/remove", p.handle), "bad")))}</>)}
+        {tab === "add" && (<form onSubmit={addFriend} className="max-w-xl"><h2 className="text-lg font-semibold text-white">Добавить в друзья</h2><p className="text-sm text-[#b5bac1] mt-1 mb-4">Введи юзернейм друга — его можно посмотреть в профиле.</p><div className={`flex items-center h-12 rounded-lg bg-[#1e1f22] pl-4 pr-2 ${note && !note.ok ? "ring-1 ring-[#f23f42]" : note?.ok ? "ring-1 ring-[#23a559]" : "focus-within:ring-2 focus-within:ring-[#5865f2]"}`}><span className="text-[#949ba4] mr-1">@</span><input value={handle} onChange={(e) => { setHandle(e.target.value); setNote(null); }} placeholder="юзернейм" className="flex-1 bg-transparent outline-none text-white placeholder-[#4e5058]" autoFocus /><button type="submit" disabled={!handle.trim()} className="h-8 px-4 rounded-md bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors">Отправить заявку</button></div></form>)}
         {note && tab !== "add" && <p key={note.text} className="animate-fade mt-4 text-sm text-[#f23f42]">{note.text}</p>}
-        {note && tab === "add" && (
-          <p key={note.text} className={`animate-fade mt-3 text-sm ${note.ok ? "text-[#23a559]" : "text-[#f23f42]"}`}>{note.text}</p>
-        )}
+        {note && tab === "add" && (<p key={note.text} className={`animate-fade mt-3 text-sm ${note.ok ? "text-[#23a559]" : "text-[#f23f42]"}`}>{note.text}</p>)}
       </div>
     </div>
   );
@@ -620,13 +537,12 @@ function EmptyState({ title, text }: { title: string; text: string }) {
 
 /* ───────────── сам чат ───────────── */
 
-function ChatApp({
-  session, onLogout, onHandleChange,
-}: { session: Session; onLogout: () => void; onHandleChange: (h: string) => void }) {
+function ChatApp({ session, onLogout, onHandleChange }: { session: Session; onLogout: () => void; onHandleChange: (h: string) => void }) {
   const { token, username, handle } = session;
 
+  const [servers, setServers] = useState<Server[]>([]);
+  const [activeServerId, setActiveServerId] = useState<number | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
-  // По умолчанию открываем друзей
   const [view, setView] = useState<"chat" | "friends">("friends");
   const [activeId, setActiveId] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -635,7 +551,7 @@ function ChatApp({
   const [friends, setFriends] = useState<FriendsData>({ friends: [], incoming: [], outgoing: [] });
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
-  const [modal, setModal] = useState<null | "channel" | "profile">(null);
+  const [modal, setModal] = useState<null | "channel" | "profile" | "server">(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const activeRef = useRef(activeId);
@@ -650,13 +566,37 @@ function ChatApp({
     api<FriendsData>("/api/friends", token).then(setFriends).catch(() => {});
   }, [token]);
 
-  // первичная загрузка каналов и друзей
+  // Загрузка серверов
   useEffect(() => {
-    api<Channel[]>("/api/channels", token).then(setChannels).catch(() => {});
+    api<Server[]>("/api/servers", token).then((s) => {
+      setServers(s);
+      if (s.length > 0) setActiveServerId(s[0].id);
+    }).catch(() => {});
     loadFriends();
   }, [token, loadFriends]);
 
-  // соединение с сервером (с автопереподключением)
+  // Загрузка каналов при смене сервера
+  useEffect(() => {
+    if (activeServerId === null) {
+      setChannels([]);
+      return;
+    }
+    api<Channel[]>(`/api/channels?server_id=${activeServerId}`, token).then((c) => {
+      setChannels(c);
+      if (c.length > 0) {
+        activeRef.current = c[0].id;
+        setActiveId(c[0].id);
+        setMessages([]);
+        sendWs({ type: "history", channel: c[0].id });
+        setView("chat");
+      } else {
+        setView("chat");
+        setActiveId(0);
+      }
+    }).catch(() => {});
+  }, [activeServerId, token, sendWs]);
+
+  // WebSocket соединение
   useEffect(() => {
     let closedByUs = false;
     let retry: number | undefined;
@@ -682,50 +622,28 @@ function ChatApp({
             break;
           case "message": {
             const m: ChatMessage = data.message;
-            if (m.channel === activeRef.current) {
-              setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
-            } else if (m.user !== username) {
-              setUnread((u) => ({ ...u, [m.channel]: true }));
-            }
+            if (m.channel === activeRef.current) setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+            else if (m.user !== username) setUnread((u) => ({ ...u, [m.channel]: true }));
             break;
           }
-          case "presence":
-            setOnline(data.users);
-            break;
-          case "channel":
-            setChannels((prev) => (prev.some((c) => c.id === data.channel.id) ? prev : [...prev, data.channel]));
-            break;
-          case "friends_update":
-            loadFriends();
-            break;
+          case "presence": setOnline(data.users); break;
+          case "channel": setChannels((prev) => (prev.some((c) => c.id === data.channel.id) ? prev : [...prev, data.channel])); break;
+          case "friends_update": loadFriends(); break;
         }
       };
-      socket.onclose = () => {
-        setConnected(false);
-        if (!closedByUs) retry = window.setTimeout(connect, 2000);
-      };
+      socket.onclose = () => { setConnected(false); if (!closedByUs) retry = window.setTimeout(connect, 2000); };
     };
 
     connect();
-    return () => {
-      closedByUs = true;
-      window.clearTimeout(retry);
-      ws?.close();
-      wsRef.current = null;
-    };
+    return () => { closedByUs = true; window.clearTimeout(retry); ws?.close(); wsRef.current = null; };
   }, [token, username, loadFriends]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeId, view]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, activeId, view]);
 
   const openChannel = (id: number) => {
     setView("chat");
     if (id !== activeRef.current) {
-      activeRef.current = id;
-      setActiveId(id);
-      setMessages([]);
-      sendWs({ type: "history", channel: id });
+      activeRef.current = id; setActiveId(id); setMessages([]); sendWs({ type: "history", channel: id });
     }
     setUnread((u) => ({ ...u, [id]: false }));
   };
@@ -739,12 +657,8 @@ function ChatApp({
 
   const activeChannel = channels.find((c) => c.id === activeId);
 
-  // сообщения + разделители дат + группировка
   const items = useMemo(() => {
-    const out: Array<
-      | { kind: "day"; key: string; label: string }
-      | { kind: "msg"; msg: ChatMessage; head: boolean }
-    > = [];
+    const out: Array<{ kind: "day"; key: string; label: string } | { kind: "msg"; msg: ChatMessage; head: boolean }> = [];
     let prev: ChatMessage | undefined;
     for (const m of messages) {
       const newDay = !prev || new Date(prev.ts * 1000).toDateString() !== new Date(m.ts * 1000).toDateString();
@@ -756,100 +670,72 @@ function ChatApp({
     return out;
   }, [messages]);
 
-  const onlineSorted = useMemo(
-    () => [...online].sort((a, b) => a.username.localeCompare(b.username)),
-    [online]
-  );
+  const onlineSorted = useMemo(() => [...online].sort((a, b) => a.username.localeCompare(b.username)), [online]);
 
   return (
     <div className="animate-chat-in flex h-screen bg-[#313338] text-[#dbdee1] font-sans">
+      
       {/* полоса серверов */}
-      <div className="w-[72px] shrink-0 bg-[#1e1f22] flex flex-col items-center py-3 gap-2">
-        <div className="w-12 h-12 bg-[#5865f2] rounded-[16px] flex items-center justify-center font-bold text-white cursor-pointer hover:rounded-full transition-all duration-200">
-          F
-        </div>
-        <div className="w-8 h-0.5 rounded bg-[#35363c]" />
+      <div className="w-[72px] shrink-0 bg-[#1e1f22] flex flex-col items-center py-3 gap-2 overflow-y-auto">
+        {servers.map((s) => (
+          <div
+            key={s.id}
+            onClick={() => setActiveServerId(s.id)}
+            className={`w-12 h-12 flex items-center justify-center font-bold text-white cursor-pointer transition-all duration-200 ${activeServerId === s.id ? "bg-[#5865f2] rounded-[16px]" : "bg-[#313338] rounded-full hover:bg-[#5865f2] hover:rounded-[16px]"}`}
+            title={s.name}
+          >
+            {s.name.charAt(0).toUpperCase()}
+          </div>
+        ))}
+        <div className="w-8 h-0.5 rounded bg-[#35363c] my-1" />
+        <button onClick={() => setModal("server")} className="w-12 h-12 bg-[#313338] rounded-full flex items-center justify-center text-[#23a559] text-2xl cursor-pointer hover:bg-[#23a559] hover:text-white hover:rounded-[16px] transition-all duration-200" title="Создать сервер">+</button>
       </div>
 
       {/* панель каналов */}
       <div className="w-[240px] shrink-0 bg-[#2b2d31] flex flex-col">
-        <div className="h-12 shrink-0 flex items-center px-4 font-bold text-white shadow-sm shadow-black/20">FYCORD</div>
+        <div className="h-12 shrink-0 flex items-center px-4 font-bold text-white shadow-sm shadow-black/20">
+          {servers.find(s => s.id === activeServerId)?.name || "FYCORD"}
+        </div>
 
         <div className="p-2 flex-1 overflow-y-auto">
-          <button
-            onClick={() => setView("friends")}
-            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors ${
-              view === "friends" ? "bg-[#404249] text-white" : "text-[#949ba4] hover:bg-[#35373c] hover:text-[#dbdee1]"
-            }`}
-          >
+          <button onClick={() => setView("friends")} className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors ${view === "friends" ? "bg-[#404249] text-white" : "text-[#949ba4] hover:bg-[#35373c] hover:text-[#dbdee1]"}`}>
             {Icon.users}
             <span className="font-medium flex-1 text-left">Друзья</span>
-            {friends.incoming.length > 0 && (
-              <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#f23f42] text-white text-xs leading-5 text-center">
-                {friends.incoming.length}
-              </span>
-            )}
+            {friends.incoming.length > 0 && (<span className="min-w-5 h-5 px-1.5 rounded-full bg-[#f23f42] text-white text-xs leading-5 text-center">{friends.incoming.length}</span>)}
           </button>
 
-          <div className="flex items-center justify-between px-2 pt-5 pb-1 group">
-            <span className="text-xs font-bold text-[#949ba4] uppercase tracking-wide">Текстовые каналы</span>
-            <button
-              onClick={() => setModal("channel")}
-              title="Создать канал"
-              className="w-5 h-5 flex items-center justify-center rounded text-[#949ba4] hover:text-white text-lg leading-none transition-colors"
-            >
-              +
-            </button>
-          </div>
+          {activeServerId && (
+            <>
+              <div className="flex items-center justify-between px-2 pt-5 pb-1 group">
+                <span className="text-xs font-bold text-[#949ba4] uppercase tracking-wide">Текстовые каналы</span>
+                <button onClick={() => setModal("channel")} title="Создать канал" className="w-5 h-5 flex items-center justify-center rounded text-[#949ba4] hover:text-white text-lg leading-none transition-colors">+</button>
+              </div>
 
-          {channels.map((c) => {
-            const active = view === "chat" && c.id === activeId;
-            return (
-              <button
-                key={c.id}
-                onClick={() => openChannel(c.id)}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 mt-0.5 rounded-md transition-colors ${
-                  active
-                    ? "bg-[#404249] text-white"
-                    : unread[c.id]
-                      ? "text-white hover:bg-[#35373c]"
-                      : "text-[#949ba4] hover:bg-[#35373c] hover:text-[#dbdee1]"
-                }`}
-              >
-                <span className="text-[#80848e] shrink-0">{Icon.hash}</span>
-                <span className={`truncate flex-1 text-left ${unread[c.id] && !active ? "font-semibold" : ""}`}>{c.name}</span>
-                {unread[c.id] && !active && <span className="w-2 h-2 rounded-full bg-white shrink-0" />}
-              </button>
-            );
-          })}
+              {channels.map((c) => {
+                const active = view === "chat" && c.id === activeId;
+                return (
+                  <button key={c.id} onClick={() => openChannel(c.id)} className={`w-full flex items-center gap-2 px-2 py-1.5 mt-0.5 rounded-md transition-colors ${active ? "bg-[#404249] text-white" : unread[c.id] ? "text-white hover:bg-[#35373c]" : "text-[#949ba4] hover:bg-[#35373c] hover:text-[#dbdee1]"}`}>
+                    <span className="text-[#80848e] shrink-0">{Icon.hash}</span>
+                    <span className={`truncate flex-1 text-left ${unread[c.id] && !active ? "font-semibold" : ""}`}>{c.name}</span>
+                    {unread[c.id] && !active && <span className="w-2 h-2 rounded-full bg-white shrink-0" />}
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* карточка пользователя */}
         <div className="h-[52px] shrink-0 bg-[#232428] flex items-center px-2 gap-2">
-          <button
-            onClick={() => setModal("profile")}
-            className="flex items-center gap-2 flex-1 min-w-0 p-1 rounded-md hover:bg-white/5 transition-colors text-left"
-          >
+          <button onClick={() => setModal("profile")} className="flex items-center gap-2 flex-1 min-w-0 p-1 rounded-md hover:bg-white/5 transition-colors text-left">
             <Avatar name={username} size={32} online={connected} />
             <div className="min-w-0 leading-tight">
               <div className="text-sm font-semibold text-white truncate">{username}</div>
               <div className="text-xs text-[#949ba4] truncate">{connected ? `@${handle}` : "Подключение…"}</div>
             </div>
           </button>
-          <button
-            onClick={() => setModal("profile")}
-            title="Профиль"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-[#b5bac1] hover:bg-white/5 hover:text-white transition-colors"
-          >
-            {Icon.gear}
-          </button>
-          <button
-            onClick={onLogout}
-            title="Выйти"
-            className="w-8 h-8 flex items-center justify-center rounded-md text-[#b5bac1] hover:bg-white/5 hover:text-[#f23f42] transition-colors"
-          >
-            {Icon.logout}
-          </button>
+          <button onClick={() => setModal("profile")} title="Профиль" className="w-8 h-8 flex items-center justify-center rounded-md text-[#b5bac1] hover:bg-white/5 hover:text-white transition-colors">{Icon.gear}</button>
+          <button onClick={onLogout} title="Выйти" className="w-8 h-8 flex items-center justify-center rounded-md text-[#b5bac1] hover:bg-white/5 hover:text-[#f23f42] transition-colors">{Icon.logout}</button>
         </div>
       </div>
 
@@ -864,16 +750,14 @@ function ChatApp({
               {activeChannel?.name ?? "Канал"}
             </div>
 
-            {!connected && (
-              <div className="shrink-0 bg-[#f0b232]/15 text-[#f0b232] text-sm px-4 py-1.5">Переподключение к серверу…</div>
-            )}
+            {!connected && (<div className="shrink-0 bg-[#f0b232]/15 text-[#f0b232] text-sm px-4 py-1.5">Переподключение к серверу…</div>)}
 
             <div className="flex-1 overflow-y-auto py-4">
+              {!activeChannel && <div className="flex h-full items-center justify-center text-[#949ba4]">Выберите или создайте канал</div>}
+
               {messages.length === 0 && activeChannel && (
                 <div className="px-4 pb-4">
-                  <div className="w-16 h-16 rounded-full bg-[#41434a] flex items-center justify-center text-white mb-3 scale-125 origin-left ml-2">
-                    {Icon.hash}
-                  </div>
+                  <div className="w-16 h-16 rounded-full bg-[#41434a] flex items-center justify-center text-white mb-3 scale-125 origin-left ml-2">{Icon.hash}</div>
                   <h2 className="text-3xl font-bold text-white mt-5">Добро пожаловать в #{activeChannel.name}!</h2>
                   <p className="text-[#b5bac1] mt-1">Это начало канала. Напиши первое сообщение.</p>
                 </div>
@@ -881,32 +765,12 @@ function ChatApp({
 
               {items.map((it) =>
                 it.kind === "day" ? (
-                  <div key={it.key} className="flex items-center gap-3 mx-4 my-4 text-xs font-semibold text-[#949ba4]">
-                    <div className="flex-1 h-px bg-[#3f4147]" />
-                    {it.label}
-                    <div className="flex-1 h-px bg-[#3f4147]" />
-                  </div>
+                  <div key={it.key} className="flex items-center gap-3 mx-4 my-4 text-xs font-semibold text-[#949ba4]"><div className="flex-1 h-px bg-[#3f4147]" />{it.label}<div className="flex-1 h-px bg-[#3f4147]" /></div>
                 ) : (
-                  <div
-                    key={it.msg.id}
-                    className={`animate-msg-in group flex gap-4 px-4 py-0.5 hover:bg-[#2e3035] ${it.head ? "mt-4" : ""}`}
-                  >
-                    {it.head ? (
-                      <Avatar name={it.msg.user} />
-                    ) : (
-                      <div className="w-10 shrink-0 text-[10px] leading-[22px] text-center text-[#949ba4] opacity-0 group-hover:opacity-100 select-none">
-                        {fmtTime(it.msg.ts)}
-                      </div>
-                    )}
+                  <div key={it.msg.id} className={`animate-msg-in group flex gap-4 px-4 py-0.5 hover:bg-[#2e3035] ${it.head ? "mt-4" : ""}`}>
+                    {it.head ? (<Avatar name={it.msg.user} />) : (<div className="w-10 shrink-0 text-[10px] leading-[22px] text-center text-[#949ba4] opacity-0 group-hover:opacity-100 select-none">{fmtTime(it.msg.ts)}</div>)}
                     <div className="min-w-0">
-                      {it.head && (
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-medium" style={{ color: `hsl(${hue(it.msg.user)} 75% 72%)` }}>
-                            {it.msg.user}
-                          </span>
-                          <span className="text-xs text-[#949ba4]">{fmtTime(it.msg.ts)}</span>
-                        </div>
-                      )}
+                      {it.head && (<div className="flex items-baseline gap-2"><span className="font-medium" style={{ color: `hsl(${hue(it.msg.user)} 75% 72%)` }}>{it.msg.user}</span><span className="text-xs text-[#949ba4]">{fmtTime(it.msg.ts)}</span></div>)}
                       <p className="text-[#dbdee1] break-words whitespace-pre-wrap leading-[1.4]">{it.msg.text}</p>
                     </div>
                   </div>
@@ -917,33 +781,20 @@ function ChatApp({
 
             <div className="px-4 pb-6 pt-1 shrink-0">
               <div className="bg-[#383a40] rounded-lg flex items-center px-4 focus-within:ring-1 focus-within:ring-[#5865f2]/60 transition-shadow">
-                <input
-                  type="text"
-                  value={input}
-                  maxLength={2000}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  placeholder={activeChannel ? `Написать в #${activeChannel.name}` : "Выберите канал"}
-                  disabled={!activeChannel}
-                  className="w-full bg-transparent py-3 outline-none text-white placeholder-[#6d6f78] disabled:opacity-50"
-                />
+                <input type="text" value={input} maxLength={2000} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} placeholder={activeChannel ? `Написать в #${activeChannel.name}` : "Выберите канал"} disabled={!activeChannel} className="w-full bg-transparent py-3 outline-none text-white placeholder-[#6d6f78] disabled:opacity-50" />
               </div>
             </div>
           </div>
 
           {/* участники онлайн */}
           <div className="hidden lg:flex w-[240px] shrink-0 flex-col bg-[#2b2d31] overflow-y-auto">
-            <div className="px-4 pt-6 pb-2 text-xs font-bold uppercase text-[#949ba4]">
-              В сети — {onlineSorted.length}
-            </div>
+            <div className="px-4 pt-6 pb-2 text-xs font-bold uppercase text-[#949ba4]">В сети — {onlineSorted.length}</div>
             <div className="px-2 pb-4">
               {onlineSorted.map((p) => (
                 <div key={p.handle} className="flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-[#35373c] transition-colors">
                   <Avatar name={p.username} size={32} online />
                   <div className="min-w-0 leading-tight">
-                    <div className="font-medium truncate" style={{ color: `hsl(${hue(p.username)} 75% 72%)` }}>
-                      {p.username}
-                    </div>
+                    <div className="font-medium truncate" style={{ color: `hsl(${hue(p.username)} 75% 72%)` }}>{p.username}</div>
                     <div className="text-xs text-[#949ba4] truncate">@{p.handle}</div>
                   </div>
                 </div>
@@ -953,18 +804,12 @@ function ChatApp({
         </>
       )}
 
-      {modal === "profile" && (
-        <ProfileModal session={session} onClose={() => setModal(null)} onSaved={onHandleChange} />
+      {modal === "profile" && (<ProfileModal session={session} onClose={() => setModal(null)} onSaved={onHandleChange} />)}
+      {modal === "channel" && activeServerId && (
+        <ChannelModal token={token} serverId={activeServerId} onClose={() => setModal(null)} onCreated={(c) => { setChannels((prev) => (prev.some((x) => x.id === c.id) ? prev : [...prev, c])); openChannel(c.id); }} />
       )}
-      {modal === "channel" && (
-        <ChannelModal
-          token={token}
-          onClose={() => setModal(null)}
-          onCreated={(c) => {
-            setChannels((prev) => (prev.some((x) => x.id === c.id) ? prev : [...prev, c]));
-            openChannel(c.id);
-          }}
-        />
+      {modal === "server" && (
+        <ServerModal token={token} onClose={() => setModal(null)} onCreated={(s) => { setServers((prev) => [...prev, s]); setActiveServerId(s.id); }} />
       )}
     </div>
   );
@@ -974,15 +819,6 @@ function ChatApp({
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
-
   if (!session) return <AuthScreen onAuth={setSession} />;
-
-  return (
-    <ChatApp
-      key={session.token}
-      session={session}
-      onLogout={() => setSession(null)}
-      onHandleChange={(h) => setSession({ ...session, handle: h })}
-    />
-  );
+  return <ChatApp key={session.token} session={session} onLogout={() => setSession(null)} onHandleChange={(h) => setSession({ ...session, handle: h })} />;
 }
