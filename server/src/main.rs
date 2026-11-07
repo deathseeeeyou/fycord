@@ -876,8 +876,7 @@ fn init_db(conn: &Connection) {
     }
     conn.execute_batch(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle);
-         CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, id);
-         INSERT OR IGNORE INTO channels (id, name, created_at) VALUES (1, 'общий', 0);",
+         CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, id);",
     )
     .expect("не удалось создать индексы");
 

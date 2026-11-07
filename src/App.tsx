@@ -626,8 +626,9 @@ function ChatApp({
   const { token, username, handle } = session;
 
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [view, setView] = useState<"chat" | "friends">("chat");
-  const [activeId, setActiveId] = useState(1);
+  // По умолчанию открываем друзей
+  const [view, setView] = useState<"chat" | "friends">("friends");
+  const [activeId, setActiveId] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [online, setOnline] = useState<Person[]>([]);
   const [unread, setUnread] = useState<Record<number, boolean>>({});
@@ -668,7 +669,9 @@ function ChatApp({
 
       socket.onopen = () => {
         setConnected(true);
-        socket.send(JSON.stringify({ type: "history", channel: activeRef.current }));
+        if (activeRef.current) {
+          socket.send(JSON.stringify({ type: "history", channel: activeRef.current }));
+        }
         loadFriends();
       };
       socket.onmessage = (ev) => {
@@ -722,14 +725,14 @@ function ChatApp({
       activeRef.current = id;
       setActiveId(id);
       setMessages([]);
+      sendWs({ type: "history", channel: id });
     }
     setUnread((u) => ({ ...u, [id]: false }));
-    sendWs({ type: "history", channel: id });
   };
 
   const sendMessage = () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || !activeId) return;
     sendWs({ type: "send", channel: activeId, text });
     setInput("");
   };
@@ -858,7 +861,7 @@ function ChatApp({
           <div className="flex-1 flex flex-col min-w-0">
             <div className="h-12 shrink-0 flex items-center px-4 font-bold text-white shadow-sm shadow-black/20">
               <span className="text-[#80848e] mr-2">{Icon.hash}</span>
-              {activeChannel?.name ?? "…"}
+              {activeChannel?.name ?? "Канал"}
             </div>
 
             {!connected && (
@@ -920,8 +923,9 @@ function ChatApp({
                   maxLength={2000}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  placeholder={`Написать в #${activeChannel?.name ?? ""}`}
-                  className="w-full bg-transparent py-3 outline-none text-white placeholder-[#6d6f78]"
+                  placeholder={activeChannel ? `Написать в #${activeChannel.name}` : "Выберите канал"}
+                  disabled={!activeChannel}
+                  className="w-full bg-transparent py-3 outline-none text-white placeholder-[#6d6f78] disabled:opacity-50"
                 />
               </div>
             </div>
